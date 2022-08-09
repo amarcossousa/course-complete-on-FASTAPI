@@ -5,6 +5,10 @@ from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
+import models
+from .database import engine, get_db
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -76,24 +80,26 @@ def get_post(id: str):
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int):
-    index = find_index_post(id)
-    if index == None:
+    cursor.execute("""DELETE FROM posts WHERE id = %s returning * """, (str(id),))
+    deleted_post = cursor.fetchone()
+    conn.commit()
+    if deleted_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail= f"post  with id: {id} does not exist")
-    my_posts.pop(index)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
-    index = find_index_post(id)
+    cursor.execute("""UPDATE posts SET title = %s, content = %s, published = %s  WHERE id = %s
+    returning * """, 
+                    (post.title, post.content, post.published, str(id)))
 
-    if index == None:
+    update_post = cursor.fetchone()
+    conn.commit()
+    if update_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail= f"past with id: {id} does not exist")
     
-    post_dict = post.dict()
-    post_dict['id'] = id
-    my_posts[index] = post_dict
-    return {"data": post_dict}
+    return {"data": update_post}
  
